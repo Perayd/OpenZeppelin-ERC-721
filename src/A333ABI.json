@@ -1,0 +1,71 @@
+import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import ABI from "./A333ABI.json"; // compiled contract ABI
+
+const CONTRACT_ADDRESS = "0xREPLACE_WITH_DEPLOYED";
+
+export default function App() {
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [price, setPrice] = useState("0.02"); // default shown
+  const [quantity, setQuantity] = useState(1);
+  const [minting, setMinting] = useState(false);
+
+  useEffect(() => {
+    if (window.ethereum) {
+      const p = new ethers.providers.Web3Provider(window.ethereum);
+      setProvider(p);
+    }
+  }, []);
+
+  async function connect() {
+    if (!provider) return alert("Install MetaMask or Coinbase Wallet.");
+    await provider.send("eth_requestAccounts", []);
+    const s = provider.getSigner();
+    const addr = await s.getAddress();
+    setSigner(s); setAccount(addr);
+  }
+
+  async function mint() {
+    if (!signer) return connect();
+    setMinting(true);
+    try {
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      const priceWei = await contract.price();
+      const tx = await contract.mint(quantity, { value: priceWei.mul(quantity) });
+      await tx.wait();
+      alert("Mint success!");
+    } catch (err) {
+      console.error(err);
+      alert("Mint failed: " + (err.message || err));
+    } finally {
+      setMinting(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white p-8">
+      <div className="max-w-md w-full bg-gray-800 rounded-2xl p-6 shadow-lg">
+        <h1 className="text-2xl font-bold mb-2">A333 — Special NFT</h1>
+        <p className="mb-4">Network: Base</p>
+        <div className="mb-4">
+          <label className="block">Quantity</label>
+          <input type="number" min="1" max="20" value={quantity}
+            onChange={(e)=>setQuantity(Number(e.target.value))}
+            className="w-full p-2 rounded bg-gray-700" />
+        </div>
+        <div className="flex gap-2">
+          {!account ? (
+            <button onClick={connect} className="px-4 py-2 rounded bg-blue-600">Connect Wallet</button>
+          ) : (
+            <div className="px-4 py-2 rounded bg-green-600">Connected: {account.substring(0,6)}...{account.slice(-4)}</div>
+          )}
+          <button onClick={mint} disabled={minting} className="px-4 py-2 rounded bg-pink-600">
+            {minting ? "Minting..." : `Mint (${price} ETH)` }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
